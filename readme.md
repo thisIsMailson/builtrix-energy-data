@@ -1,21 +1,15 @@
-Fullstack rest API in TypeScript and Go(Next 14, Go, Postgres, Docker)
-Overview
 
-Hey there! Welcome to our awesome project! 🚀 This project is a cool mix of a Go backend, a PostgreSQL database, and a Next.js 14 frontend. Together, they create a magical experience for handling users with all the CRUD (Create, Read, Update, Delete) actions.
-Getting Started
-Prerequisites
-
-To join the fun, make sure you have the following installed on your machine:
+To have the project running, make sure you have the following installed on your machine:
 
     Docker
     Docker Compose
+    Go
 
 Quick Setup
 
     Clone this project to your local machine.
     Navigate to the project directory.
 
-Starting the Show
 Running the Application
 
 Execute the following commands to start the application:

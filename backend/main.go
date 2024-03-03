@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
@@ -34,11 +35,13 @@ func main() {
 
 	// create router
 	router := mux.NewRouter()
-	router.HandleFunc("/api/go/users", getUsers(db)).Methods("GET")
-	router.HandleFunc("/api/go/users", createUser(db)).Methods("POST")
-	router.HandleFunc("/api/go/users/{id}", getUser(db)).Methods("GET")
-	router.HandleFunc("/api/go/users/{id}", updateUser(db)).Methods("PUT")
-	router.HandleFunc("/api/go/users/{id}", deleteUser(db)).Methods("DELETE")
+	router.HandleFunc("/api/go/users", getMapData(db)).Methods("GET")
+
+	router.HandleFunc("/api/map", getMapData(db)).Methods("GET")
+	router.HandleFunc("/api/monthly-aggregated-data", getMonthlyAggregatedData(db)).Methods("GET")
+	router.HandleFunc("/api/emission-breakdown", getEmissionBreakdown(db)).Methods("GET")
+	router.HandleFunc("/api/building-names", getBuildingNames(db)).Methods("GET")
+	router.HandleFunc("/api/hourly-aggregated-data", getHourlyAggregatedData(db)).Methods("GET")
 
 	// wrap the router with CORS and JSON content type middlewares
 	enhancedRouter := enableCORS(jsonContentTypeMiddleware(router))
@@ -74,110 +77,175 @@ func jsonContentTypeMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// get all users
-func getUsers(db *sql.DB) http.HandlerFunc {
+type MapData struct {
+	Cpe         string
+	Lat         float64
+	Lon         float64
+	Name        string
+	Fulladdress string
+}
+
+// getMapData function
+func getMapData(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		rows, err := db.Query("SELECT * FROM users")
+		rows, err := db.Query("SELECT cpe, lat, lon, name, fulladdress FROM metadata")
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer rows.Close()
 
-		users := []User{} // array of users
+		mapData := []MapData{}
 		for rows.Next() {
-			var u User
-			if err := rows.Scan(&u.Id, &u.Name, &u.Email); err != nil {
+			var data MapData
+			if err := rows.Scan(&data.Cpe, &data.Lat, &data.Lon, &data.Name, &data.Fulladdress); err != nil {
 				log.Fatal(err)
 			}
-			users = append(users, u)
+			mapData = append(mapData, data)
 		}
 		if err := rows.Err(); err != nil {
 			log.Fatal(err)
 		}
 
-		json.NewEncoder(w).Encode(users)
+		json.NewEncoder(w).Encode(mapData)
 	}
 }
 
-// get user by id
-func getUser(db *sql.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		id := vars["id"]
+// EmissionBreakdown represents the data needed for the Pie Chart Widget
+type EmissionBreakdown struct {
+	BuildingName string
+	EmissionType string
+	Percentage   float64
+}
 
-		var u User
-		err := db.QueryRow("SELECT * FROM users WHERE id = $1", id).Scan(&u.Id, &u.Name, &u.Email)
+// getEmissionBreakdown function
+func getEmissionBreakdown(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rows, err := db.Query("SELECT name as building_name, emission_type, percentage FROM emission_breakdown")
 		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
+			log.Fatal(err)
+		}
+		defer rows.Close()
+
+		emissionBreakdown := []EmissionBreakdown{}
+		for rows.Next() {
+			var breakdown EmissionBreakdown
+			if err := rows.Scan(&breakdown.BuildingName, &breakdown.EmissionType, &breakdown.Percentage); err != nil {
+				log.Fatal(err)
+			}
+			emissionBreakdown = append(emissionBreakdown, breakdown)
+		}
+		if err := rows.Err(); err != nil {
+			log.Fatal(err)
+		}
+
+		json.NewEncoder(w).Encode(emissionBreakdown)
+	}
+}
+
+// MonthlyAggregatedData represents the data needed for the Bar Chart Widget
+type MonthlyAggregatedData struct {
+	Month        int
+	TotalEnergy  float64
+	BuildingName string
+}
+
+// getMonthlyAggregatedData function
+func getMonthlyAggregatedData(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rows, err := db.Query("SELECT EXTRACT(MONTH FROM timestamp) as month, SUM(active_energy) as total_energy, cpe FROM smart_meter GROUP BY month, cpe")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer rows.Close()
+
+		monthlyAggregatedData := []MonthlyAggregatedData{}
+		for rows.Next() {
+			var aggregatedData MonthlyAggregatedData
+			if err := rows.Scan(&aggregatedData.Month, &aggregatedData.TotalEnergy, &aggregatedData.BuildingName); err != nil {
+				log.Fatal(err)
+			}
+			monthlyAggregatedData = append(monthlyAggregatedData, aggregatedData)
+		}
+		if err := rows.Err(); err != nil {
+			log.Fatal(err)
+		}
+
+		json.NewEncoder(w).Encode(monthlyAggregatedData)
+	}
+}
+
+// Building represents the data needed for the filter
+type Building struct {
+	Name string
+}
+
+// getBuildingNames function
+func getBuildingNames(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rows, err := db.Query("SELECT DISTINCT name FROM metadata")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer rows.Close()
+
+		buildingNames := []Building{}
+		for rows.Next() {
+			var building Building
+			if err := rows.Scan(&building.Name); err != nil {
+				log.Fatal(err)
+			}
+			buildingNames = append(buildingNames, building)
+		}
+		if err := rows.Err(); err != nil {
+			log.Fatal(err)
+		}
+
+		json.NewEncoder(w).Encode(buildingNames)
+	}
+}
+
+// HourlyAggregatedData represents the data needed for hourly aggregation
+type HourlyAggregatedData struct {
+	Timestamp    time.Time
+	ActiveEnergy float64
+}
+
+// getHourlyAggregatedData function
+func getHourlyAggregatedData(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Query to aggregate active_energy on an hourly basis
+		query := `
+            SELECT date_trunc('hour', timestamp) as timestamp, SUM(active_energy) as active_energy
+            FROM smart_meter
+            GROUP BY timestamp
+            ORDER BY timestamp
+        `
+
+		rows, err := db.Query(query)
+		if err != nil {
+			log.Fatal(err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
+		defer rows.Close()
 
-		json.NewEncoder(w).Encode(u)
-	}
-}
-
-// create user
-func createUser(db *sql.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var u User
-		json.NewDecoder(r.Body).Decode(&u)
-
-		err := db.QueryRow("INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id", u.Name, u.Email).Scan(&u.Id)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		json.NewEncoder(w).Encode(u)
-	}
-}
-
-// update user
-func updateUser(db *sql.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var u User
-		json.NewDecoder(r.Body).Decode(&u)
-
-		vars := mux.Vars(r)
-		id := vars["id"]
-
-		// Execute the update query
-		_, err := db.Exec("UPDATE users SET name = $1, email = $2 WHERE id = $3", u.Name, u.Email, id)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		// Retrieve the updated user data from the database
-		var updatedUser User
-		err = db.QueryRow("SELECT id, name, email FROM users WHERE id = $1", id).Scan(&updatedUser.Id, &updatedUser.Name, &updatedUser.Email)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		// Send the updated user data in the response
-		json.NewEncoder(w).Encode(updatedUser)
-	}
-}
-
-// delete user
-func deleteUser(db *sql.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		id := vars["id"]
-
-		var u User
-		err := db.QueryRow("SELECT * FROM users WHERE id = $1", id).Scan(&u.Id, &u.Name, &u.Email)
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		} else {
-			_, err := db.Exec("DELETE FROM users WHERE id = $1", id)
-			if err != nil {
-				//todo : fix error handling
-				w.WriteHeader(http.StatusNotFound)
+		hourlyAggregatedData := []HourlyAggregatedData{}
+		for rows.Next() {
+			var data HourlyAggregatedData
+			if err := rows.Scan(&data.Timestamp, &data.ActiveEnergy); err != nil {
+				log.Fatal(err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
-
-			json.NewEncoder(w).Encode("User deleted")
+			hourlyAggregatedData = append(hourlyAggregatedData, data)
 		}
+		if err := rows.Err(); err != nil {
+			log.Fatal(err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		// Encode the result as JSON and send it in the response
+		json.NewEncoder(w).Encode(hourlyAggregatedData)
 	}
 }

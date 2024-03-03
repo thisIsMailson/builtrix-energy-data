@@ -1,13 +1,15 @@
 import React from 'react'
 import UserInterface from '../components/UserInterface'
 
+import Link from 'next/link';
 const Home: React.FC = () => {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen py-2">
-      <div className='m-4'>
-        <UserInterface backendName="go" />
-      </div>
-    </div>
+    <>
+      <div>HOME PAGE</div>
+      <Link href="/login">
+        Login
+      </Link>
+    </>
   )
 }
 
