@@ -39,7 +39,6 @@ func main() {
 
 	router.HandleFunc("/api/map", getMapData(db)).Methods("GET")
 	router.HandleFunc("/api/monthly-aggregated-data", getMonthlyAggregatedData(db)).Methods("GET")
-	router.HandleFunc("/api/emission-breakdown", getEmissionBreakdown(db)).Methods("GET")
 	router.HandleFunc("/api/building-names", getBuildingNames(db)).Methods("GET")
 	router.HandleFunc("/api/hourly-aggregated-data", getHourlyAggregatedData(db)).Methods("GET")
 
@@ -115,31 +114,6 @@ type EmissionBreakdown struct {
 	BuildingName string
 	EmissionType string
 	Percentage   float64
-}
-
-// getEmissionBreakdown function
-func getEmissionBreakdown(db *sql.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		rows, err := db.Query("SELECT name as building_name, emission_type, percentage FROM emission_breakdown")
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer rows.Close()
-
-		emissionBreakdown := []EmissionBreakdown{}
-		for rows.Next() {
-			var breakdown EmissionBreakdown
-			if err := rows.Scan(&breakdown.BuildingName, &breakdown.EmissionType, &breakdown.Percentage); err != nil {
-				log.Fatal(err)
-			}
-			emissionBreakdown = append(emissionBreakdown, breakdown)
-		}
-		if err := rows.Err(); err != nil {
-			log.Fatal(err)
-		}
-
-		json.NewEncoder(w).Encode(emissionBreakdown)
-	}
 }
 
 // MonthlyAggregatedData represents the data needed for the Bar Chart Widget
