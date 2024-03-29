@@ -112,10 +112,7 @@ export default function Dashboard() {
       <GridItem title={'Monthly Aggregated Data'}><BarChart data={monthlyData} filterOption={monthBuildingData} /></GridItem>
       <GridItem title={'Hourly Aggregated Data'}><LineChart data={hourlyData} /></GridItem>
       <div className="grid xl:grid-cols-2 lg:grid-cols-2 gap-10 max-w-[1400px]">
-
-
         <PieChartContainer data={monthlyData} />
-
         <MonthlyPieChartContainer data={monthlyData} />
       </div>
 

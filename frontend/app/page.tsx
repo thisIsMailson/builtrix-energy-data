@@ -1,13 +1,7 @@
-'use client'
 
-import Link from "next/link"
+import { redirect } from "next/navigation"
 
 export default function Home() {
-  return (
-    <>
-      <Link href="/login">
-        Login
-      </Link>
-    </>
-  )
+  // this is just to so we can see the login page without having to add anything to this page
+  redirect('/login')
 }
